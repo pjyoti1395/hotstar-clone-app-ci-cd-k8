@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage('Git Clone') {
             steps {
-                git branch: 'main', url: 'https://github.com/akaspatranobis/hotstar-clone-app-ci-cd-k8.git'
+                git branch: 'main', url: 'https://github.com/pjyoti1395/hotstar-clone-app-ci-cd-k8/'
             }
         }
         
@@ -17,7 +17,7 @@ pipeline {
         stage('Terraform Initialize') {
             steps {
                 dir('EKS_TERRAFORM') {
-                    sh 'terraform init'
+                    sh 'terraform init -reconfigure'
                 }
             }
         }
