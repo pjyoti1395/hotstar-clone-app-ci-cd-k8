@@ -4,70 +4,80 @@ pipeline {
   environment {
     AWS_REGION = "us-east-1"
     KUBECONFIG = "${WORKSPACE}/.kube/config"
+    CLUSTER_NAME = "EKS_CLOUD"
+    IAM_USER_ARN = "arn:aws:iam::352324842329:user/jyoti" // update if needed
   }
 
   stages {
     stage('Init Terraform') {
       steps {
-        dir('EKS_TERRAFORM') {
-          sh 'terraform init'
-        }
+        sh 'terraform init'
       }
     }
 
     stage('Plan Terraform') {
       steps {
-        dir('EKS_TERRAFORM') {
-          sh 'terraform plan'
-        }
+        sh 'terraform plan'
       }
     }
 
     stage('Apply Terraform') {
       steps {
-        dir('EKS_TERRAFORM') {
-          sh 'terraform apply -auto-approve'
-        }
+        sh 'terraform apply -auto-approve'
       }
     }
 
     stage('Wait for EKS cluster readiness') {
       steps {
-        dir('EKS_TERRAFORM') {
-          retry(5) {
-            sh '''
-              echo "⏳ Waiting for EKS to be ACTIVE..."
-              sleep 20
-              aws eks describe-cluster --region ${AWS_REGION} --name EKS_CLOUD --query 'cluster.status' --output text | grep ACTIVE
-            '''
-          }
+        retry(5) {
+          sh '''
+            echo "⏳ Waiting for EKS to be ACTIVE..."
+            sleep 30
+            aws eks describe-cluster --region ${AWS_REGION} --name ${CLUSTER_NAME} --query 'cluster.status' --output text | grep ACTIVE
+          '''
         }
       }
     }
 
     stage('Update kubeconfig') {
       steps {
-        dir('EKS_TERRAFORM') {
-          sh '''
-            echo "🔁 Updating kubeconfig to connect to EKS..."
-            mkdir -p $(dirname ${KUBECONFIG})
-            echo "💡 Using kubeconfig path: ${KUBECONFIG}"
-            aws eks update-kubeconfig --region ${AWS_REGION} --name EKS_CLOUD --kubeconfig ${KUBECONFIG}
-          '''
-        }
+        sh '''
+          echo "🔁 Updating kubeconfig to connect to EKS..."
+          mkdir -p $(dirname ${KUBECONFIG})
+          aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME} --kubeconfig ${KUBECONFIG}
+        '''
       }
     }
 
     stage('Configure aws-auth ConfigMap') {
       steps {
-        dir('EKS_TERRAFORM') {
-          sh '''
-            echo "🔧 Patching aws-auth config map..."
-            # TODO: Add your kubectl apply or patch command here for aws-auth
-            # Example (only if you have aws-auth.yaml):
-            # kubectl apply -f aws-auth.yaml --kubeconfig=${KUBECONFIG}
-          '''
-        }
+        sh '''
+          echo "🔧 Creating aws-auth ConfigMap..."
+          cat <<EOF > aws-auth.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-auth
+  namespace: kube-system
+data:
+  mapUsers: |
+    - userarn: ${IAM_USER_ARN}
+      username: jyoti
+      groups:
+        - system:masters
+EOF
+
+          kubectl apply -f aws-auth.yaml --kubeconfig=${KUBECONFIG}
+        '''
+      }
+    }
+
+    stage('Verify Access') {
+      steps {
+        sh '''
+          echo "📡 Verifying access with kubectl..."
+          kubectl get nodes --kubeconfig=${KUBECONFIG}
+        '''
       }
     }
   }
