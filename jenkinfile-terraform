@@ -77,15 +77,15 @@ metadata:
   namespace: kube-system
 data:
   mapRoles: |
-    - groups:
+    - rolearn: arn:aws:iam::352324842329:role/eks-node-group-cloud
+      username: system:node:{{EC2PrivateDNSName}}
+      groups:
         - system:bootstrappers
         - system:nodes
-      rolearn: arn:aws:iam::352324842329:role/eks-node-group-cloud
-      username: system:node:{{EC2PrivateDNSName}}
-    - groups:
-        - system:masters
-      rolearn: arn:aws:iam::352324842329:role/AdminAccess
+    - rolearn: arn:aws:iam::352324842329:role/AdminAccess
       username: admin
+      groups:
+        - system:masters
 '''
                     sh '''
                         echo "⛅ Applying aws-auth ConfigMap manually..."
