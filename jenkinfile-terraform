@@ -43,6 +43,9 @@ pipeline {
         }
 
         stage('Delete aws-auth ConfigMap if exists') {
+            when {
+                expression { params.Action == 'apply' }
+            }
             steps {
                 script {
                     withEnv(["KUBECONFIG=/root/.kube/config"]) {
@@ -91,7 +94,7 @@ pipeline {
                         echo "🔁 Updating kubeconfig to connect to EKS..."
                         aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
 
-                        echo "⚠️ Destroying infrastructure..."
+                        echo "⚠️ Destroying Terraform-managed infrastructure..."
                         terraform destroy --auto-approve
                     '''
                 }
