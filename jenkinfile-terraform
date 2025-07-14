@@ -60,12 +60,7 @@ pipeline {
                 dir('EKS_TERRAFORM') {
                     script {
                         if (params.Action == 'apply') {
-                            sh '''
-                                echo "Cleaning up existing aws-auth configmap (if any)..."
-                                aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
-                                kubectl delete configmap aws-auth -n kube-system || true
-                                terraform apply --auto-approve
-                            '''
+                            sh 'terraform apply --auto-approve'
                         } else if (params.Action == 'destroy') {
                             sh 'terraform destroy --auto-approve'
                         } else {
