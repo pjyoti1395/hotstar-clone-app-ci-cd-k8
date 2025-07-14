@@ -42,29 +42,19 @@ pipeline {
             }
         }
 
-        stage('Terraform Apply/Destroy') {
+        stage('Terraform Apply') {
             steps {
-                dir('EKS_TERRAFORM') {
-                    script {
-                        if (params.Action == 'apply') {
-                            sh '''
-                                echo "Connecting to EKS cluster..."
-                                aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
-
-                                echo "Deleting existing aws-auth configmap if exists..."
-                                kubectl delete configmap aws-auth -n kube-system || echo "No existing aws-auth to delete"
-
-                                echo "Running terraform apply..."
-                                terraform apply --auto-approve
-                            '''
-                        } else if (params.Action == 'destroy') {
-                            sh 'terraform destroy --auto-approve'
-                        } else {
-                            error "Unknown Action: ${params.Action}"
-                        }
-                    }
-                }
+            dir('EKS_TERRAFORM') {
+                sh '''
+                    echo "🔁 Updating kubeconfig to connect to EKS..."
+                    aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
+    
+                    echo "🧹 Deleting existing aws-auth configmap to avoid duplicate error..."
+                    kubectl delete configmap aws-auth -n kube-system || echo "No existing aws-auth to delete"
+    
+                    echo "🚀 Applying Terraform changes..."
+                    terraform apply --auto-approve
+                '''
             }
-        }
     }
 }
