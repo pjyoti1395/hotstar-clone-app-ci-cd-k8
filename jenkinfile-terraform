@@ -42,6 +42,19 @@ pipeline {
             }
         }
 
+         stage('Clean aws-auth ConfigMap') {
+            when {
+                expression { params.Action == 'apply' }
+            }
+            steps {
+                sh '''
+                    echo "Checking and deleting existing aws-auth ConfigMap..."
+                    aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
+                    kubectl delete configmap aws-auth -n kube-system || true
+                '''
+            }
+        }
+ 
         stage('Terraform Apply/Destroy') {
             steps {
                 dir('EKS_TERRAFORM') {
