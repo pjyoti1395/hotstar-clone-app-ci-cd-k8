@@ -74,11 +74,11 @@ pipeline {
             steps {
                 dir('EKS_TERRAFORM') {
                     sh '''
-                        echo "🔁 Updating kubeconfig to connect to EKS..."
-                        aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
+                    echo "🔁 Updating kubeconfig to connect to EKS..."
+                    aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
 
-                        echo "🚀 Applying Terraform changes..."
-                        terraform apply --auto-approve
+                    echo "🚀 Applying Terraform changes..."
+                    terraform apply --auto-approve
                     '''
                 }
             }
@@ -91,11 +91,11 @@ pipeline {
             steps {
                 dir('EKS_TERRAFORM') {
                     sh '''
-                        echo "🔁 Updating kubeconfig to connect to EKS..."
-                        aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
+                    echo "🔁 Updating kubeconfig to connect to EKS..."
+                    aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
 
-                        echo "⚠️ Destroying Terraform-managed infrastructure..."
-                        terraform destroy --auto-approve
+                    echo "⚠️ Destroying Terraform-managed infrastructure..."
+                    terraform destroy --auto-approve
                     '''
                 }
             }
