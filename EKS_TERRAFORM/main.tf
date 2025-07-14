@@ -21,18 +21,20 @@ resource "aws_iam_role_policy_attachment" "example-AmazonEKSClusterPolicy" {
   role       = aws_iam_role.example.name
 }
 
-#get vpc data
+# Get VPC data
 data "aws_vpc" "default" {
   default = true
 }
-#get public subnets for cluster
+
+# Get public subnets for cluster
 data "aws_subnets" "public" {
   filter {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
 }
-#cluster provision
+
+# Create EKS Cluster
 resource "aws_eks_cluster" "example" {
   name     = "EKS_CLOUD"
   role_arn = aws_iam_role.example.arn
@@ -41,13 +43,12 @@ resource "aws_eks_cluster" "example" {
     subnet_ids = data.aws_subnets.public.ids
   }
 
-  # Ensure that IAM Role permissions are created before and deleted after EKS Cluster handling.
-  # Otherwise, EKS will not be able to properly delete EKS managed EC2 infrastructure such as Security Groups.
   depends_on = [
     aws_iam_role_policy_attachment.example-AmazonEKSClusterPolicy,
   ]
 }
 
+# Node group IAM role
 resource "aws_iam_role" "example1" {
   name = "eks-node-group-cloud"
 
@@ -78,7 +79,7 @@ resource "aws_iam_role_policy_attachment" "example-AmazonEC2ContainerRegistryRea
   role       = aws_iam_role.example1.name
 }
 
-#create node group
+# Create node group
 resource "aws_eks_node_group" "example" {
   cluster_name    = aws_eks_cluster.example.name
   node_group_name = "Node-cloud"
@@ -90,10 +91,9 @@ resource "aws_eks_node_group" "example" {
     max_size     = 2
     min_size     = 1
   }
+
   instance_types = ["t2.medium"]
 
-  # Ensure that IAM Role permissions are created before and deleted after EKS Node Group handling.
-  # Otherwise, EKS will not be able to properly delete EC2 Instances and Elastic Network Interfaces.
   depends_on = [
     aws_iam_role_policy_attachment.example-AmazonEKSWorkerNodePolicy,
     aws_iam_role_policy_attachment.example-AmazonEKS_CNI_Policy,
@@ -101,9 +101,7 @@ resource "aws_eks_node_group" "example" {
   ]
 }
 
-
-# --- added by Jyoti ------ 
-# ---------- Kubernetes Provider (needed for aws-auth) ----------
+# Kubernetes provider (still required for kubectl usage)
 provider "kubernetes" {
   host                   = aws_eks_cluster.example.endpoint
   cluster_ca_certificate = base64decode(aws_eks_cluster.example.certificate_authority[0].data)
@@ -112,29 +110,4 @@ provider "kubernetes" {
 
 data "aws_eks_cluster_auth" "token" {
   name = aws_eks_cluster.example.name
-}
-
-# ---------- aws-auth ConfigMap ----------
-resource "kubernetes_config_map" "aws_auth" {
-  depends_on = [aws_eks_node_group.example]
-
-  metadata {
-    name      = "aws-auth"
-    namespace = "kube-system"
-  }
-
-  data = {
-    mapRoles = yamlencode([
-      {
-        rolearn  = aws_iam_role.example1.arn
-        username = "system:node:{{EC2PrivateDNSName}}"
-        groups   = ["system:bootstrappers", "system:nodes"]
-      },
-      {
-        rolearn  = "arn:aws:iam::352324842329:role/AdminAccess"
-        username = "admin"
-        groups   = ["system:masters"]
-      }
-    ])
-  }
 }
