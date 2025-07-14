@@ -9,7 +9,7 @@ pipeline {
   stages {
     stage('Init Terraform') {
       steps {
-        dir('eks_terraform') {
+        dir('EKS_TERRAFORM') {
           sh 'terraform init'
         }
       }
@@ -17,7 +17,7 @@ pipeline {
 
     stage('Plan Terraform') {
       steps {
-        dir('eks_terraform') {
+        dir('EKS_TERRAFORM') {
           sh 'terraform plan'
         }
       }
@@ -25,7 +25,7 @@ pipeline {
 
     stage('Apply Terraform') {
       steps {
-        dir('eks_terraform') {
+        dir('EKS_TERRAFORM') {
           sh 'terraform apply -auto-approve'
         }
       }
@@ -57,8 +57,8 @@ pipeline {
       steps {
         sh '''
           echo "🔧 Patching aws-auth config map..."
-          # Example (you'll need to modify this based on IAM role setup)
-          # kubectl apply -f aws-auth-patch.yaml
+          # Example placeholder command
+          # kubectl apply -f aws-auth.yaml --kubeconfig=${KUBECONFIG}
         '''
       }
     }
@@ -66,8 +66,8 @@ pipeline {
     stage('Verify Access') {
       steps {
         sh '''
-          echo "🔍 Verifying access to cluster"
-          kubectl get nodes
+          echo "🔍 Verifying cluster access..."
+          kubectl get nodes --kubeconfig=${KUBECONFIG}
         '''
       }
     }
