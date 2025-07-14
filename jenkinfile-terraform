@@ -1,19 +1,23 @@
 pipeline {
     agent any
 
+    parameters {
+        choice(name: 'Action', choices: ['apply', 'destroy'], description: 'Choose Terraform action')
+    }
+
     stages {
         stage('Git Clone') {
             steps {
                 git branch: 'main', url: 'https://github.com/pjyoti1395/hotstar-clone-app-ci-cd-k8'
             }
         }
-        
+
         stage('Terraform Version Check') {
             steps {
                 sh 'terraform --version'
             }
         }
-        
+
         stage('Terraform Initialize') {
             steps {
                 dir('EKS_TERRAFORM') {
@@ -21,7 +25,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Terraform Validate') {
             steps {
                 dir('EKS_TERRAFORM') {
@@ -29,7 +33,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Terraform Plan') {
             steps {
                 dir('EKS_TERRAFORM') {
@@ -37,11 +41,24 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Terraform Apply/Destroy') {
             steps {
                 dir('EKS_TERRAFORM') {
-                    sh 'terraform ${Action} --auto-approve'
+                    script {
+                        if (params.Action == 'apply') {
+                            sh '''
+                                echo "Cleaning up existing aws-auth configmap (if any)..."
+                                aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
+                                kubectl delete configmap aws-auth -n kube-system || true
+                                terraform apply --auto-approve
+                            '''
+                        } else if (params.Action == 'destroy') {
+                            sh 'terraform destroy --auto-approve'
+                        } else {
+                            error "Unknown Action: ${params.Action}"
+                        }
+                    }
                 }
             }
         }
