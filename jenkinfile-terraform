@@ -41,6 +41,27 @@ pipeline {
                 }
             }
         }
+        stage('Delete aws-auth ConfigMap if exists') {
+            steps {
+                script {
+                    withEnv(["KUBECONFIG=/root/.kube/config"]) {
+                        sh '''
+                        set +e
+                        kubectl get configmap aws-auth -n kube-system
+                        if [ $? -eq 0 ]; then
+                          echo "Deleting existing aws-auth configmap..."
+                          kubectl delete configmap aws-auth -n kube-system
+                          echo "Deleted aws-auth configmap."
+                          sleep 5
+                        else
+                          echo "aws-auth configmap does not exist. No need to delete."
+                        fi
+                        set -e
+                        '''
+                    }
+                }
+            }
+   }
 
         stage('Terraform Apply') {
             steps {
