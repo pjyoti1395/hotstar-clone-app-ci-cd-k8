@@ -5,6 +5,10 @@ pipeline {
         choice(name: 'Action', choices: ['apply', 'destroy'], description: 'Terraform Action')
     }
 
+    environment {
+        KUBECONFIG = "/root/.kube/config"
+    }
+
     stages {
         stage('Git Clone') {
             steps {
@@ -42,31 +46,6 @@ pipeline {
             }
         }
 
-        stage('Delete aws-auth ConfigMap if exists') {
-            when {
-                expression { params.Action == 'apply' }
-            }
-            steps {
-                script {
-                    withEnv(["KUBECONFIG=/root/.kube/config"]) {
-                        sh '''
-                        set +e
-                        kubectl get configmap aws-auth -n kube-system
-                        if [ $? -eq 0 ]; then
-                          echo "Deleting existing aws-auth configmap..."
-                          kubectl delete configmap aws-auth -n kube-system
-                          echo "Deleted aws-auth configmap."
-                          sleep 5
-                        else
-                          echo "aws-auth configmap does not exist. No need to delete."
-                        fi
-                        set -e
-                        '''
-                    }
-                }
-            }
-        }
-
         stage('Terraform Apply') {
             when {
                 expression { params.Action == 'apply' }
@@ -74,11 +53,43 @@ pipeline {
             steps {
                 dir('EKS_TERRAFORM') {
                     sh '''
-                    echo "🔁 Updating kubeconfig to connect to EKS..."
-                    aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
+                        echo "🔁 Updating kubeconfig to connect to EKS..."
+                        aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
 
-                    echo "🚀 Applying Terraform changes..."
-                    terraform apply --auto-approve
+                        echo "🚀 Applying Terraform changes..."
+                        terraform apply --auto-approve
+                    '''
+                }
+            }
+        }
+
+        stage('Configure aws-auth ConfigMap') {
+            when {
+                expression { params.Action == 'apply' }
+            }
+            steps {
+                script {
+                    writeFile file: 'aws-auth.yaml', text: '''
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-auth
+  namespace: kube-system
+data:
+  mapRoles: |
+    - groups:
+        - system:bootstrappers
+        - system:nodes
+      rolearn: arn:aws:iam::352324842329:role/eks-node-group-cloud
+      username: system:node:{{EC2PrivateDNSName}}
+    - groups:
+        - system:masters
+      rolearn: arn:aws:iam::352324842329:role/AdminAccess
+      username: admin
+'''
+                    sh '''
+                        echo "⛅ Applying aws-auth ConfigMap manually..."
+                        kubectl apply -f aws-auth.yaml
                     '''
                 }
             }
@@ -91,11 +102,11 @@ pipeline {
             steps {
                 dir('EKS_TERRAFORM') {
                     sh '''
-                    echo "🔁 Updating kubeconfig to connect to EKS..."
-                    aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
+                        echo "🔁 Updating kubeconfig to connect to EKS..."
+                        aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
 
-                    echo "⚠️ Destroying Terraform-managed infrastructure..."
-                    terraform destroy --auto-approve
+                        echo "⚠️ Destroying Terraform-managed infrastructure..."
+                        terraform destroy --auto-approve
                     '''
                 }
             }
