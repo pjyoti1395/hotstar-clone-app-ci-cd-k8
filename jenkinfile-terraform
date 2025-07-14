@@ -4,26 +4,30 @@ pipeline {
   environment {
     AWS_REGION = "us-east-1"
     KUBECONFIG = "${WORKSPACE}/.kube/config"
-    CLUSTER_NAME = "EKS_CLOUD"
-    IAM_USER_ARN = "arn:aws:iam::352324842329:user/jyoti" // update if needed
   }
 
   stages {
     stage('Init Terraform') {
       steps {
-        sh 'terraform init'
+        dir('eks_terraform') {
+          sh 'terraform init'
+        }
       }
     }
 
     stage('Plan Terraform') {
       steps {
-        sh 'terraform plan'
+        dir('eks_terraform') {
+          sh 'terraform plan'
+        }
       }
     }
 
     stage('Apply Terraform') {
       steps {
-        sh 'terraform apply -auto-approve'
+        dir('eks_terraform') {
+          sh 'terraform apply -auto-approve'
+        }
       }
     }
 
@@ -32,8 +36,8 @@ pipeline {
         retry(5) {
           sh '''
             echo "⏳ Waiting for EKS to be ACTIVE..."
-            sleep 30
-            aws eks describe-cluster --region ${AWS_REGION} --name ${CLUSTER_NAME} --query 'cluster.status' --output text | grep ACTIVE
+            sleep 20
+            aws eks describe-cluster --region ${AWS_REGION} --name EKS_CLOUD --query 'cluster.status' --output text | grep ACTIVE
           '''
         }
       }
@@ -44,7 +48,7 @@ pipeline {
         sh '''
           echo "🔁 Updating kubeconfig to connect to EKS..."
           mkdir -p $(dirname ${KUBECONFIG})
-          aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME} --kubeconfig ${KUBECONFIG}
+          aws eks update-kubeconfig --region ${AWS_REGION} --name EKS_CLOUD --kubeconfig ${KUBECONFIG}
         '''
       }
     }
@@ -52,22 +56,9 @@ pipeline {
     stage('Configure aws-auth ConfigMap') {
       steps {
         sh '''
-          echo "🔧 Creating aws-auth ConfigMap..."
-          cat <<EOF > aws-auth.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: aws-auth
-  namespace: kube-system
-data:
-  mapUsers: |
-    - userarn: ${IAM_USER_ARN}
-      username: jyoti
-      groups:
-        - system:masters
-EOF
-
-          kubectl apply -f aws-auth.yaml --kubeconfig=${KUBECONFIG}
+          echo "🔧 Patching aws-auth config map..."
+          # Example (you'll need to modify this based on IAM role setup)
+          # kubectl apply -f aws-auth-patch.yaml
         '''
       }
     }
@@ -75,8 +66,8 @@ EOF
     stage('Verify Access') {
       steps {
         sh '''
-          echo "📡 Verifying access with kubectl..."
-          kubectl get nodes --kubeconfig=${KUBECONFIG}
+          echo "🔍 Verifying access to cluster"
+          kubectl get nodes
         '''
       }
     }
