@@ -1,119 +1,65 @@
 pipeline {
-    agent any
+  agent any
 
-    parameters {
-        choice(name: 'Action', choices: ['apply', 'destroy'], description: 'Terraform Action')
+  environment {
+    AWS_REGION = "us-east-1"
+    KUBECONFIG = "${WORKSPACE}/.kube/config"
+  }
+
+  stages {
+    stage('Init Terraform') {
+      steps {
+        sh 'terraform init'
+      }
     }
 
-    environment {
-        KUBECONFIG = "${env.WORKSPACE}/.kube/config"
+    stage('Plan Terraform') {
+      steps {
+        sh 'terraform plan'
+      }
     }
 
-    stages {
-        stage('Git Clone') {
-            steps {
-                git branch: 'main', url: 'https://github.com/pjyoti1395/hotstar-clone-app-ci-cd-k8'
-            }
-        }
-
-        stage('Terraform Version Check') {
-            steps {
-                sh 'terraform --version'
-            }
-        }
-
-        stage('Terraform Initialize') {
-            steps {
-                dir('EKS_TERRAFORM') {
-                    sh 'terraform init -reconfigure'
-                }
-            }
-        }
-
-        stage('Terraform Validate') {
-            steps {
-                dir('EKS_TERRAFORM') {
-                    sh 'terraform validate'
-                }
-            }
-        }
-
-        stage('Terraform Plan') {
-            steps {
-                dir('EKS_TERRAFORM') {
-                    sh 'terraform plan'
-                }
-            }
-        }
-
-        stage('Terraform Apply') {
-            when {
-                expression { params.Action == 'apply' }
-            }
-            steps {
-                dir('EKS_TERRAFORM') {
-                    sh '''
-                        echo "🔁 Updating kubeconfig to connect to EKS..."
-                        echo "💡 Using kubeconfig path: $KUBECONFIG"
-                        mkdir -p $(dirname $KUBECONFIG)
-                        aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD --kubeconfig $KUBECONFIG
-
-                        echo "🚀 Applying Terraform changes..."
-                        terraform apply --auto-approve
-                    '''
-                }
-            }
-        }
-
-        stage('Configure aws-auth ConfigMap') {
-            when {
-                expression { params.Action == 'apply' }
-            }
-            steps {
-                script {
-                    writeFile file: 'aws-auth.yaml', text: '''
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: aws-auth
-  namespace: kube-system
-data:
-  mapRoles: |
-    - rolearn: arn:aws:iam::352324842329:role/eks-node-group-cloud
-      username: system:node:{{EC2PrivateDNSName}}
-      groups:
-        - system:bootstrappers
-        - system:nodes
-    - rolearn: arn:aws:iam::352324842329:role/AdminAccess
-      username: admin
-      groups:
-        - system:masters
-'''
-                    sh '''
-                        echo "⛅ Applying aws-auth ConfigMap manually..."
-                        kubectl apply -f aws-auth.yaml --kubeconfig $KUBECONFIG
-                    '''
-                }
-            }
-        }
-
-        stage('Terraform Destroy') {
-            when {
-                expression { params.Action == 'destroy' }
-            }
-            steps {
-                dir('EKS_TERRAFORM') {
-                    sh '''
-                        echo "🔁 Updating kubeconfig to connect to EKS..."
-                        echo "💡 Using kubeconfig path: $KUBECONFIG"
-                        mkdir -p $(dirname $KUBECONFIG)
-                        aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD --kubeconfig $KUBECONFIG
-
-                        echo "⚠️ Destroying Terraform-managed infrastructure..."
-                        terraform destroy --auto-approve
-                    '''
-                }
-            }
-        }
+    stage('Apply Terraform') {
+      steps {
+        sh 'terraform apply -auto-approve'
+      }
     }
+
+    stage('Wait for EKS cluster readiness') {
+      steps {
+        retry(5) {
+          sh '''
+            echo "⏳ Waiting for EKS to be ACTIVE..."
+            sleep 20
+            aws eks describe-cluster --region ${AWS_REGION} --name EKS_CLOUD --query 'cluster.status' --output text | grep ACTIVE
+          '''
+        }
+      }
+    }
+
+    stage('Update kubeconfig') {
+      steps {
+        sh '''
+          echo "🔁 Updating kubeconfig to connect to EKS..."
+          mkdir -p $(dirname ${KUBECONFIG})
+          aws eks update-kubeconfig --region ${AWS_REGION} --name EKS_CLOUD --kubeconfig ${KUBECONFIG}
+        '''
+      }
+    }
+
+    stage('Configure aws-auth ConfigMap') {
+      steps {
+        sh '''
+          echo "🔧 Patching aws-auth config map..."
+          # Add your kubectl patch/create command here
+        '''
+      }
+    }
+  }
+
+  post {
+    failure {
+      echo "❌ Pipeline failed. Please check logs."
+    }
+  }
 }
