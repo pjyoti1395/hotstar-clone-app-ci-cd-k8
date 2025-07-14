@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     parameters {
-        choice(name: 'Action', choices: ['apply', 'destroy'], description: 'Choose Terraform action')
+        choice(name: 'Action', choices: ['apply', 'destroy'], description: 'Terraform Action')
     }
 
     stages {
@@ -42,25 +42,21 @@ pipeline {
             }
         }
 
-         stage('Clean aws-auth ConfigMap') {
-            when {
-                expression { params.Action == 'apply' }
-            }
-            steps {
-                sh '''
-                    echo "Checking and deleting existing aws-auth ConfigMap..."
-                    aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
-                    kubectl delete configmap aws-auth -n kube-system || true
-                '''
-            }
-        }
- 
         stage('Terraform Apply/Destroy') {
             steps {
                 dir('EKS_TERRAFORM') {
                     script {
                         if (params.Action == 'apply') {
-                            sh 'terraform apply --auto-approve'
+                            sh '''
+                                echo "Connecting to EKS cluster..."
+                                aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
+
+                                echo "Deleting existing aws-auth configmap if exists..."
+                                kubectl delete configmap aws-auth -n kube-system || echo "No existing aws-auth to delete"
+
+                                echo "Running terraform apply..."
+                                terraform apply --auto-approve
+                            '''
                         } else if (params.Action == 'destroy') {
                             sh 'terraform destroy --auto-approve'
                         } else {
