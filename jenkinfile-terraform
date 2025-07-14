@@ -41,41 +41,43 @@ pipeline {
                 }
             }
         }
-        stage('Delete aws-auth ConfigMap if exists') {
+
+        stage('Terraform Apply/Destroy') {
             steps {
-                script {
-                    withEnv(["KUBECONFIG=/root/.kube/config"]) {
-                        sh '''
-                        set +e
-                        kubectl get configmap aws-auth -n kube-system
-                        if [ $? -eq 0 ]; then
-                          echo "Deleting existing aws-auth configmap..."
-                          kubectl delete configmap aws-auth -n kube-system
-                          echo "Deleted aws-auth configmap."
-                          sleep 5
-                        else
-                          echo "aws-auth configmap does not exist. No need to delete."
-                        fi
-                        set -e
-                        '''
+                dir('EKS_TERRAFORM') {
+                    script {
+                        if (params.Action == 'apply') {
+                            sh '''
+                                echo "🔁 Updating kubeconfig to connect to EKS..."
+                                aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
+
+                                echo "🧹 Deleting aws-auth ConfigMap if it exists..."
+                                set +e
+                                kubectl get configmap aws-auth -n kube-system
+                                if [ $? -eq 0 ]; then
+                                  kubectl delete configmap aws-auth -n kube-system
+                                  echo "✅ Deleted existing aws-auth configmap"
+                                  sleep 5
+                                else
+                                  echo "ℹ️ aws-auth configmap does not exist"
+                                fi
+                                set -e
+
+                                echo "🚀 Running terraform apply..."
+                                terraform apply --auto-approve
+                            '''
+                        } else {
+                            sh '''
+                                echo "🔁 Updating kubeconfig to connect to EKS..."
+                                aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
+
+                                echo "🔥 Running terraform destroy..."
+                                terraform destroy --auto-approve
+                            '''
+                        }
                     }
                 }
             }
-   }
-
-        stage('Terraform Apply') {
-            steps {
-            dir('EKS_TERRAFORM') {
-                sh '''
-                    echo "🔁 Updating kubeconfig to connect to EKS..."
-                    aws eks update-kubeconfig --region us-east-1 --name EKS_CLOUD
-    
-                    echo "🧹 Deleting existing aws-auth configmap to avoid duplicate error..."
-                    kubectl delete configmap aws-auth -n kube-system || echo "No existing aws-auth to delete"
-    
-                    echo "🚀 Applying Terraform changes..."
-                    terraform apply --auto-approve
-                '''
-            }
+        }
     }
 }
