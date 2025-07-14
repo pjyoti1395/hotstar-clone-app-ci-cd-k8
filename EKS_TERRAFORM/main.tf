@@ -100,3 +100,41 @@ resource "aws_eks_node_group" "example" {
     aws_iam_role_policy_attachment.example-AmazonEC2ContainerRegistryReadOnly,
   ]
 }
+
+
+# --- added by Jyoti ------ 
+# ---------- Kubernetes Provider (needed for aws-auth) ----------
+provider "kubernetes" {
+  host                   = aws_eks_cluster.example.endpoint
+  cluster_ca_certificate = base64decode(aws_eks_cluster.example.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.token.token
+}
+
+data "aws_eks_cluster_auth" "token" {
+  name = aws_eks_cluster.example.name
+}
+
+# ---------- aws-auth ConfigMap ----------
+resource "kubernetes_config_map" "aws_auth" {
+  depends_on = [aws_eks_node_group.example]
+
+  metadata {
+    name      = "aws-auth"
+    namespace = "kube-system"
+  }
+
+  data = {
+    mapRoles = yamlencode([
+      {
+        rolearn  = aws_iam_role.example1.arn
+        username = "system:node:{{EC2PrivateDNSName}}"
+        groups   = ["system:bootstrappers", "system:nodes"]
+      },
+      {
+        rolearn  = "arn:aws:iam::352324842329:role/AdminAccess"
+        username = "admin"
+        groups   = ["system:masters"]
+      }
+    ])
+  }
+}
