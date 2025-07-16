@@ -45,15 +45,15 @@ pipeline{
             }
         }
         stage("Docker Build & Push"){
-            steps{
-                script{
-                   withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){
-                       sh "docker build -t hotstar ."
-                       sh "docker tag hotstar jyoti9513/hotstar:latest "
-                       sh "docker push jyoti9513/hotstar:latest"
-                    }
-                }
-            }
+	    steps{
+	        script{
+	           withDockerRegistry(credentialsId: '0634dec0-b981-4a39-a3c1-de8e4176eb7a', toolName: 'docker'){
+	               sh "docker build -t hotstar ."
+	               sh "docker tag hotstar jyoti9513/hotstar:latest"
+	               sh "docker push jyoti9513/hotstar:latest"
+	            }
+	        }
+	    }
         }
         stage("TRIVY"){
             steps{
