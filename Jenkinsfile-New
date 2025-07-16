@@ -15,7 +15,7 @@ pipeline{
         }
         stage('Checkout from Git'){
             steps{
-                git branch: 'main', url: 'https://github.com/akaspatranobis/hotstar-clone-app-ci-cd-k8.git'
+                git branch: 'main', url: 'https://github.com/pjyoti1395/hotstar-clone-app-ci-cd-k8.git'
             }
         }
         stage("Sonarqube Analysis "){
@@ -49,15 +49,15 @@ pipeline{
                 script{
                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){
                        sh "docker build -t hotstar ."
-                       sh "docker tag hotstar apatranobis59/hotstar:latest "
-                       sh "docker push apatranobis59/hotstar:latest"
+                       sh "docker tag hotstar jyoti9513/hotstar:latest "
+                       sh "docker push jyoti9513/hotstar:latest"
                     }
                 }
             }
         }
         stage("TRIVY"){
             steps{
-                sh "trivy image apatranobis59/hotstar:latest > trivyimage.txt" 
+                sh "trivy image jyoti9513/hotstar:latest > trivyimage.txt" 
             }
         }
 		
